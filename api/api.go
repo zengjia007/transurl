@@ -14,6 +14,7 @@ var DB *sql.DB = dbutil.GetConn()
 
 var urlPre = util.GetInstanceConf().Read("Url", "PREFIX_URL_ADDRESS")
 
+var mu = &sync.Mutex{}
 
 // 定义数据库表tb_url信息
 type TbUrl struct {
@@ -36,8 +37,9 @@ func LongToShort(longUrl string) (shortUrl string, err error) {
 	md5code := fmt.Sprintf("%x", urlMd5)
 	code += md5code
 	// 对下面的代码进行同步操作，避免大量并发导致同一个长连接对应多个短连接
-	var mu = &sync.Mutex{}
+
 	mu.Lock() // 加锁
+	defer mu.Unlock() // 释放锁
 	res := DB.QueryRow("select id, origin_url, short_url, url_code from tb_url where url_code=?", code)
 	url := &TbUrl{}
 	err = res.Scan(&url.Id, &url.OriginUrl, &url.ShortUrl, &url.code)
@@ -51,7 +53,7 @@ func LongToShort(longUrl string) (shortUrl string, err error) {
 			return shortUrl, err
 		}
 	}
-	mu.Unlock() // 释放锁
+
 	if err != nil {
 		fmt.Println("DB.query fail,", err.Error())
 		return
